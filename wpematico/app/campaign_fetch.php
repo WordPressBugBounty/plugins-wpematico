@@ -838,41 +838,56 @@ class wpematico_campaign_fetch extends wpematico_campaign_fetch_functions {
 
                 $itemUrl = $this->current_item['permalink'];
                 $imagen_src = $this->current_item['featured_image'];
-                //**** ecesaria para la featured ?	$imagen_src = apply_filters('wpematico_imagen_src', $imagen_src ); // allow strip parts 
+				
                 $imagen_src_real = $this->getRelativeUrl($itemUrl, $imagen_src);
-                // Strip all white space on images URLs.	
-                $imagen_src_real = str_replace(' ', '%20', $imagen_src_real);
-                // Fix images URLs with entities like &amp;	to get it with correct name and remain the original in images array.
-                $imagen_src_real = html_entity_decode($imagen_src_real);
-                $imagen_src_real = apply_filters('wpematico_img_src_url', $imagen_src_real);
+				
+                // Parse the original name on url to get the file correctly 
+                $imagen_src_real = $this->parse_src_image($imagen_src_real);
+
                 $allowed = (isset($this->cfg['images_allowed_ext']) && !empty($this->cfg['images_allowed_ext']) ) ? $this->cfg['images_allowed_ext'] : 'jpg,gif,png,tif,bmp,jpeg';
                 $allowed = apply_filters('wpematico_allowext', $allowed);
-                //Fetch and Store the Image	
-                ///////////////***************************************************************************************////////////////////////
-                $newimgname = apply_filters('wpematico_newimgname', sanitize_file_name(urlencode(basename($imagen_src_real))), $this->current_item, $this->campaign, $item);  // new name here
-                // Primero intento con mi funcion mas rapida
+                
+                // Parse the destiny filename to store the file correctly on WP media or system directory
+                $newimgname = $this->parse_dst_image($imagen_src_real, $this->current_item, $this->campaign, $item);
+                
+                // Proceed with the Fetch and Store the Image
                 $upload_dir = wp_upload_dir();
                 $imagen_dst = trailingslashit($upload_dir['path']) . $newimgname;
                 $imagen_dst_url = trailingslashit($upload_dir['url']) . $newimgname;
                 $img_new_url = "";
-                if (in_array(str_replace('.', '', strrchr(strtolower($imagen_dst), '.')), explode(',', $allowed))) {   // -------- Controlo extensiones permitidas
+               
+				// Check for allowed extensions
+                if (in_array(str_replace('.', '', strrchr(strtolower($imagen_dst), '.')), explode(',', $allowed))) {
                     trigger_error('Uploading media=' . $imagen_src . ' <b>to</b> imagen_dst=' . $imagen_dst . '', E_USER_NOTICE);
+					
+					// First I try my fastest function
                     $newfile = ($options_images['customupload']) ? WPeMatico::save_file_from_url($imagen_src_real, $imagen_dst) : false;
-                    if ($newfile) { //subió
+                    if ($newfile) { // uploaded
                         trigger_error('Uploaded media=' . $newfile, E_USER_NOTICE);
                         $imagen_dst = $newfile;
                         $imagen_dst_url = trailingslashit($upload_dir['url']) . basename($newfile);
                         $img_new_url = $imagen_dst_url;
-                    } else { // falló -> intento con otros
-                        $bits = WPeMatico::wpematico_get_contents($imagen_src_real);
-                        $mirror = wp_upload_bits($newimgname, NULL, $bits);
-                        if (!$mirror['error']) {
-                            trigger_error($mirror['url'], E_USER_NOTICE);
-                            $img_new_url = $mirror['url'];
-                        }
+						
+                    } else { // Upload failed 
+						// try other methods
+                        $bits = WPeMatico::wpematico_get_contents($imagen_src_real); // Read the file
+						
+						if (!$bits) { //Reading errors
+							// Actions if give nothing or getting errors 
+							trigger_error(__('Failed to obtain file:', 'wpematico') . $imagen_src_real, E_USER_WARNING);
+						}else{
+							// Obtained -> Try to upload
+							$mirror = wp_upload_bits($newimgname, NULL, $bits);
+							if (!$mirror['error']) { // Upload well 
+								trigger_error($mirror['url'], E_USER_NOTICE);
+								$img_new_url = $mirror['url'];
+							} else { // Uploading errors
+								trigger_error(__('Save Featured image file failed:', 'wpematico') . $imagen_dst, E_USER_WARNING);
+							}
+	                    }
                     }
                 }
-            } else {
+            } else { // The image[0] was already uploaded with the images in the content, do not upload it again
                 $img_new_url = $this->current_item['featured_image'];
             }
             if (!empty($img_new_url)) {
@@ -880,8 +895,9 @@ class wpematico_campaign_fetch extends wpematico_campaign_fetch_functions {
                 array_shift($this->current_item['images']);  //deletes featured image from array to avoid double upload below
                 $attachid = false;
                 if (!$options_images['imgattach']) {
-                    //get previously uploaded attach IDs, false if not exist.  (Just attach once/first time)
-                    //	$attachid = $this->get_attach_id_from_url($this->current_item['featured_image']); 
+                    // Get previously uploaded attach IDs, false if not exist.  (Just attach once/first time)
+					
+                    // $attachid = $this->get_attach_id_from_url($this->current_item['featured_image']); 
                     $attachid = attachment_url_to_postid($this->current_item['featured_image']);
                 }
                 if ($attachid == false) {

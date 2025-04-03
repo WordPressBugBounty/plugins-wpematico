@@ -20,6 +20,7 @@ if (!defined('ABSPATH')) {
 if (!class_exists('WPeMatico_functions')) {
 	
 	class WPeMatico_functions {
+
 		public static $current_feed = ''; // The current feed that is running.
 
 		/**

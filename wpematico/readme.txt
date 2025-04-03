@@ -2,7 +2,7 @@
 Contributors: etruel, khaztiel, gerarjos14, sniuk
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=B8V39NWK3NFQU
 Tags: RSS,XML,rss to blog,feed to post,rss aggregator
-Stable tag: 2.8.1
+Stable tag: 2.8.2
 Tested up to: 6.7.2
 Requires at least: 4.8
 Requires PHP: 7.0
@@ -243,6 +243,13 @@ You can send your files to e-mail WPeMatico [at] etruel.com
 
 > See all detailed changelog at [WPeMatico Releases](https://wpematico.com/releases/)
 
+= 2.8.2 Abr 2, 2025 =
+
+* Enhanced image upload handling and processing for improved reliability.
+* Refined feedback email content when the plugin is deactivated.
+* Replaced custom function with WordPress native `attachment_url_to_postid` for better compatibility and performance.
+* NOTE: **Enlarges the version required for the [WPeMatico Professional](https://etruel.com/downloads/wpematico-professional/) addon to 3.2**  
+
 = 2.8.1 Mar 25, 2025 =
 
 * **Fixed few bugs incorporated in the last version.**
@@ -429,4 +436,4 @@ For the changelog of earlier versions, please refer to changelog.md file or [the
 
 == Upgrade Notice ==
 
-Fixes few bugs about images incorporated in the last version.
+Fixes few bugs and few improvements with images handling.
