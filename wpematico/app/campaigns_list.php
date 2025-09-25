@@ -877,7 +877,7 @@ if (!class_exists('WPeMatico_Campaigns')) :
 						}
 
 
-						echo '<div class="row-actions2" title="' . esc_attr($ltitle) . '">' . wp_kses_post($lbotones) . '</div>';
+						echo '<div class="row-actions2" title="' . esc_attr($ltitle) . '">' . $lbotones . '</div>';
 						break;
 					case 'last':
 						$lastrun	 = get_post_meta($post_id, 'lastrun', true);
