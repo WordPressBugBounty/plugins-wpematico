@@ -670,7 +670,31 @@ if (!class_exists('WPeMatico_functions')) {
 				//send response to admin notice : ejemplo con la función dentro del add_action
 				add_action('admin_notices', function () use ($wpematico_admin_message) {
 					//echo '<div class="error"><p>', esc_html($wpematico_admin_message), '</p></div>';
-					echo wp_kses_post( $wpematico_admin_message );
+					$allowed_html = array(
+						'div' => array(
+							'id' => array(),
+							'class' => array(),
+						),
+						'p' => array(),
+						'b' => array(),
+						'strong' => array(),
+						'em' => array(),
+						'i' => array(),
+						'br' => array(),
+						'a' => array(
+							'href' => array(),
+							'target' => array(),
+							'rel' => array(),
+						),
+						'button' => array(
+							'type' => array(),
+							'class' => array(),
+						),
+						'span' => array(
+							'class' => array(),
+						),
+					);
+					echo wp_kses( $wpematico_admin_message, $allowed_html );
 				});
 			}
 			return $checks;
@@ -929,7 +953,7 @@ if (!class_exists('WPeMatico_functions')) {
 			// *** Campaign Template
 			$campaigndata['campaign_enable_template'] = (!isset($post_data['campaign_enable_template']) || empty($post_data['campaign_enable_template'])) ? false : ( ($post_data['campaign_enable_template'] == 1) ? true : false );
 			if (isset($post_data['campaign_template']))
-				$campaigndata['campaign_template'] = $post_data['campaign_template'];
+    			$campaigndata['campaign_template'] = wp_kses_post( wp_unslash( $post_data['campaign_template'] ) );
 			else {
 				$campaigndata['campaign_enable_template'] = false;
 				$campaigndata['campaign_template'] = '';
@@ -1012,26 +1036,47 @@ if (!class_exists('WPeMatico_functions')) {
 
 			// *** Campaign Rewrites	
 			// Proceso los rewrites sacando los que estan en blanco
-//		$campaign_rewrites = Array();
-			$campaign_rewrites = ( isset($post_data['campaign_rewrites']) && !empty($post_data['campaign_rewrites']) ) ? $post_data['campaign_rewrites'] : Array();
+			//		$campaign_rewrites = Array();
+			$campaign_rewrites = (isset($post_data['campaign_rewrites']) && !empty($post_data['campaign_rewrites'])) ? $post_data['campaign_rewrites'] : array();
+
 			if (isset($post_data['campaign_word_origin']) && is_array($post_data['campaign_word_origin'])) {
 
-				foreach ($post_data['campaign_word_origin'] as $id => $rewrite) {
-					$origin = wp_check_invalid_utf8($post_data['campaign_word_origin'][$id]);
+				foreach ($post_data['campaign_word_origin'] as $id => $origin_raw) {
+
+					// Verificar UTF-8
+					$origin  = wp_check_invalid_utf8($origin_raw);
+					$rewrite = wp_check_invalid_utf8($post_data['campaign_word_rewrite'][$id] ?? '');
+					$relink  = wp_check_invalid_utf8($post_data['campaign_word_relink'][$id] ?? '');
+
+					// Sanitizar para evitar XSS
+					$origin  = wp_kses_post($origin);
+					$rewrite = wp_kses_post($rewrite);
+					$relink  = wp_kses_post($relink);
+
 					$regex = (isset($post_data['campaign_word_option_regex'][$id]) && $post_data['campaign_word_option_regex'][$id] == 1) ? true : false;
 					$title = (isset($post_data['campaign_word_option_title'][$id]) && $post_data['campaign_word_option_title'][$id] == 1) ? true : false;
 
-					$rewrite = wp_check_invalid_utf8($post_data['campaign_word_rewrite'][$id]);
-					$relink = wp_check_invalid_utf8($post_data['campaign_word_relink'][$id]);
+					// Validar regex (opcional)
+					if ($regex) {
+						set_error_handler(function () {}, E_WARNING);
+						$is_valid = @preg_match($origin, '');
+						restore_error_handler();
+						if ($is_valid === false) {
+							$regex = false; // ignorar regex inválida
+						}
+					}
+
+					// Solo guardar si origin no está vacío
 					if (!empty($origin)) {
-						$campaign_rewrites['origin'][] = $origin;
-						$campaign_rewrites['regex'][] = $regex;
-						$campaign_rewrites['title'][] = $title;
+						$campaign_rewrites['origin'][]  = $origin;
+						$campaign_rewrites['regex'][]   = $regex;
+						$campaign_rewrites['title'][]   = $title;
 						$campaign_rewrites['rewrite'][] = $rewrite;
-						$campaign_rewrites['relink'][] = $relink;
+						$campaign_rewrites['relink'][]  = $relink;
 					}
 				}
 			}
+
 			$campaigndata['campaign_rewrites'] = !empty($campaign_rewrites) ? (array) $campaign_rewrites : array('origin' => array(''), 'title' => array(false), 'regex' => array(false), 'rewrite' => array(''), 'relink' => array(''));
 
 			$campaigndata['campaign_youtube_embed'] = (!isset($post_data['campaign_youtube_embed']) || empty($post_data['campaign_youtube_embed'])) ? false : ( ($post_data['campaign_youtube_embed'] == 1) ? true : false );
@@ -1248,6 +1293,19 @@ if (!class_exists('WPeMatico_functions')) {
 		 */
 		public static function Test_feed($args = '') {
 
+			// Add capability check
+			if (!current_user_can('manage_options')) {
+//				wp_send_json_error('Insufficient permissions');
+				wp_send_json(['success' => false, 'message'=>'Insufficient permissions']);
+				return;
+			}
+
+			// Add nonce validation for AJAX requests
+			if ( empty( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'wpematico_test_feed_nonce' ) ) {
+				wp_send_json(['success' => false, 'message'=>'Invalid nonce']);
+				return;
+			}
+
 			if (is_array($args)) {
 				extract($args);
 				$ajax = false;
@@ -1260,6 +1318,24 @@ if (!class_exists('WPeMatico_functions')) {
 				$url = esc_url_raw($_POST['url']);
 				$ajax = true;
 			}
+
+			if(!isset($_POST['url'])){
+				wp_send_json(['success' => false, 'message'=>'Missing URL parameter']);
+				return;
+			}
+
+//			---> This broke the use and testing the local feeds. 
+//			$url = esc_url_raw($_POST['url']);
+//			// Validate that the URL doesn't point to private/internal IP ranges
+//			$parsed_url = parse_url($url);
+//			if ($parsed_url && isset($parsed_url['host'])) {
+//				$ip = gethostbyname($parsed_url['host']);
+//				if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+//					wp_send_json_error('Invalid URL: Private IP addresses are not allowed');
+//					return;
+//				}
+//			}
+
 			/**
 			 * @since 1.8.0
 			 * Added @fetch_feed_params to change parameters values before fetch the feed.
