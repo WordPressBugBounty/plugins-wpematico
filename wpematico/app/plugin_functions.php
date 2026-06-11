@@ -365,7 +365,10 @@ add_action('plugins_loaded', 'wpematico_update_db_check');
 function wpematico_update_db_check() {
 	if (version_compare(WPEMATICO_VERSION, get_option('wpematico_db_version'), '>')) { // check if updated (WILL SAVE new version on welcome )
 		if (!get_transient('_wpematico_activation_redirect')) { //just one time running
-			wpematico_install(false);  // true will re-save all the campaigns 
+			// Re-save all campaigns when upgrading from < 2.8.20 to fix stored timestamps to UTC.
+			$needs_campaign_update = (bool) get_option('wpematico_db_version') &&
+				version_compare(get_option('wpematico_db_version'), '2.8.20', '<');
+			wpematico_install($needs_campaign_update);
 		}
 		delete_option('wpematico_lastlog_disabled');
 	}
@@ -385,9 +388,22 @@ function wpematico_install($update_campaigns = false) {
 			add_filter('wpematico_check_campaigndata', array('WPeMatico', 'check_campaigndata'), 10, 1);
 		}
 		add_filter('wpematico_check_campaigndata', 'wpematico_campaign_compatibilty_after', 99, 1);
+
+		// Migrate lastrun timestamps: old code stored current_time('timestamp') = time() + gmt_offset.
+		// New code stores time() (real UTC). Subtract the offset so existing values become correct UTC.
+		$offset          = (int) round( get_option('gmt_offset') * 3600 );
+		$db_version      = get_option('wpematico_db_version');
+		$needs_ts_fix    = $offset !== 0 && $db_version &&
+			version_compare($db_version, '2.8.20', '<');
+
 		$campaigns = get_posts($args);
 		foreach ($campaigns as $post):
 			$campaigndata = WPeMatico::get_campaign($post->ID);
+			if ($needs_ts_fix && isset($campaigndata['lastrun']) && (int) $campaigndata['lastrun'] > 0) {
+				$campaigndata['lastrun'] = (int) $campaigndata['lastrun'] - $offset;
+				update_post_meta($post->ID, 'lastrun', $campaigndata['lastrun']);
+			}
+			// update_campaign() recalculates cronnextrun via the fixed time_cron_next() (UTC).
 			WPeMatico::update_campaign($post->ID, $campaigndata);
 		endforeach;
 	}
@@ -640,34 +656,5 @@ function get_campaign_tax($taxonomy_name) {
 	}
 }
 
-function wpematico_log($message) {
-	$danger = WPeMatico::get_danger_options();
-
-	if (empty($danger['wpematico_debug_log_file'])) {
-		return;
-	}
-
-	$upload_dir = wpematico_get_upload_dir();
-
-	$filename = wp_hash(home_url('/')) . '-wpematico-debug.log';
-	$file	  = trailingslashit($upload_dir) . $filename;
-	if (!file_exists($file)) {
-		@touch($file);
-	}
-
-	$datetime = current_time('Y-m-d H:i:s');
-	$entry	  = "[{$datetime}] {$message}\n";
-
-	file_put_contents($file, $entry, FILE_APPEND | LOCK_EX);
-}
-
-/**
- * Get the full path to the current WPeMatico debug log file.
- *
- * @return string Full file path to the debug log.
- */
-function wpematico_get_log_file_path() {
-	$upload_dir = wpematico_get_upload_dir();
-	$filename	= wp_hash(home_url('/')) . '-wpematico-debug.log';
-	return trailingslashit($upload_dir) . $filename;
-}
+// wpematico_log() and wpematico_get_log_file_path() are defined in wpematico_functions.php
+// so they are available both in admin and during WP-Cron (outside is_admin()).

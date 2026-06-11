@@ -1619,16 +1619,15 @@ if (!class_exists('WPeMatico_functions')) {
 				}
 			}
 
-			//calc next timestamp
-			// We should use date_i18n here to avoid new year desfase ? https://wordpress.org/support/topic/wpematico-schedules-stop-til-jan-1-2023/
-			$currenttime = current_time('timestamp');
-			foreach (array(date_i18n('Y'), date_i18n('Y') + 1) as $year) {
+			//calc next timestamp — all calculations in real UTC to avoid server-timezone vs WP-timezone drift.
+			$currenttime = time();
+			foreach (array(gmdate('Y'), gmdate('Y') + 1) as $year) {
 				foreach ($cron['mon'] as $mon) {
 					foreach ($cron['mday'] as $mday) {
 						foreach ($cron['hours'] as $hours) {
 							foreach ($cron['minutes'] as $minutes) {
-								$timestamp = mktime($hours, $minutes, 0, $mon, $mday, $year);
-								if (in_array(date_i18n('w', $timestamp), $cron['wday']) and $timestamp > $currenttime) {
+								$timestamp = gmmktime($hours, $minutes, 0, $mon, $mday, $year);
+								if (in_array(gmdate('w', $timestamp), $cron['wday']) and $timestamp > $currenttime) {
 									return $timestamp;
 								}
 							}
@@ -2106,4 +2105,43 @@ function wpematico_get_upload_dir() {
 
 	// Return, possibly filtered
 	return $retval;
+}
+
+/**
+ * Write a timestamped entry to the WPeMatico debug log file.
+ * No-op when the debug log option is disabled in Danger Zone settings.
+ * Defined here (outside is_admin()) so addons can call it during WP-Cron.
+ *
+ * @param string $message Message to log.
+ */
+function wpematico_log( $message ) {
+	$danger = WPeMatico::get_danger_options();
+
+	if ( empty( $danger['wpematico_debug_log_file'] ) ) {
+		return;
+	}
+
+	$upload_dir = wpematico_get_upload_dir();
+	$filename   = wp_hash( home_url( '/' ) ) . '-wpematico-debug.log';
+	$file       = trailingslashit( $upload_dir ) . $filename;
+
+	if ( ! file_exists( $file ) ) {
+		@touch( $file );
+	}
+
+	$datetime = current_time( 'Y-m-d H:i:s' );
+	$entry    = "[{$datetime}] {$message}\n";
+
+	file_put_contents( $file, $entry, FILE_APPEND | LOCK_EX );
+}
+
+/**
+ * Get the full path to the current WPeMatico debug log file.
+ *
+ * @return string Full file path to the debug log.
+ */
+function wpematico_get_log_file_path() {
+	$upload_dir = wpematico_get_upload_dir();
+	$filename   = wp_hash( home_url( '/' ) ) . '-wpematico-debug.log';
+	return trailingslashit( $upload_dir ) . $filename;
 }

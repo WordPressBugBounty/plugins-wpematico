@@ -274,6 +274,7 @@ if (!class_exists('WPeMatico_Campaigns')) :
 			$wpematico_object = array(
 				'date_format'					=> get_option('date_format') . ' ' . get_option('time_format'),
 				'i18n_date_format'				=> date_i18n(get_option('date_format') . '-' . get_option('time_format')),
+				'wp_timezone_offset_seconds'	=> wp_timezone()->getOffset( new DateTime( 'now', new DateTimeZone( 'UTC' ) ) ),
 				'text_running_campaign'			=> __('Running Campaign...', 'wpematico'),
 				'text_select_a_campaign_to_run' => __('Please select campaign(s) to Run.', 'wpematico'),
 				'text_slug'						=> __('Slug', 'wpematico'),
@@ -544,7 +545,7 @@ if (!class_exists('WPeMatico_Campaigns')) :
 			$campaign_data = WPeMatico::get_campaign($id);
 
 			$campaign_data['cronnextrun'] = WPeMatico::time_cron_next($campaign_data['cron']); //set next run
-			$campaign_data['stoptime']	  = current_time('timestamp');
+			$campaign_data['stoptime']	  = time();
 			$campaign_data['lastrun']	  = $campaign_data['starttime'];
 			$campaign_data['lastruntime'] = $campaign_data['stoptime'] - $campaign_data['starttime'];
 			$campaign_data['starttime']	  = '';
@@ -845,7 +846,7 @@ if (!class_exists('WPeMatico_Campaigns')) :
 
 						// NEW BUTTONS
 						if ($starttime > 0) {  // Running play verde & grab rojo & stop gris
-							$runtime = current_time('timestamp') - $starttime;
+							$runtime = time() - $starttime;
 							if (($cfg['campaign_timeout'] <= $runtime) && ($cfg['campaign_timeout'] > 0)) {
 								$campaign_data['lastrun']		 = $starttime;
 								$campaign_data['lastruntime']	 = ' <span style="color:red;">Timeout: ' . $cfg['campaign_timeout'] . '</span>';
@@ -865,7 +866,7 @@ if (!class_exists('WPeMatico_Campaigns')) :
 						} elseif ($activated) { // Running play gris & grab rojo & stop gris
 							$cronnextrun = WPeMatico::time_cron_next($campaign_data['cron']);
 							$cronnextrun = (isset($cronnextrun) && !empty($cronnextrun) && ($cronnextrun > 0 ) ) ? $cronnextrun : $campaign_data['cronnextrun'];
-							$ltitle		 = __('Next Run:', 'wpematico') . ' ' . date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $cronnextrun);
+							$ltitle		 = __('Next Run:', 'wpematico') . ' ' . wp_date(get_option('date_format') . ' ' . get_option('time_format'), $cronnextrun);
 							$lbotones	 = '<button type="button" class="state_buttons cpanelbutton dashicons dashicons-controls-play" title="' . esc_attr(__('Run Once', 'wpematico')) . '"></button>'; // To run now
 							$lbotones	 .= '<button type="button" disabled class="state_buttons cpanelbutton dashicons dashicons-update red"></button>'; // To stop
 							$lbotones	 .= '<button type="button" class="state_buttons cpanelbutton dashicons dashicons-controls-pause" btn-href="' . WPeMatico_Campaigns::wpematico_action_link($post_id, 'display', 'toggle') . '" title="' . $atitle . '"></button>'; // To deactivate
@@ -884,7 +885,7 @@ if (!class_exists('WPeMatico_Campaigns')) :
 						$lastrun	 = (isset($lastrun) && !empty($lastrun) ) ? $lastrun : $campaign_data['lastrun'];
 						$lastruntime = (isset($campaign_data['lastruntime'])) ? $campaign_data['lastruntime'] : '';
 						if ($lastrun) {
-							echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $lastrun));
+							echo esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), $lastrun));
 							if (isset($lastruntime) && !empty($lastruntime)) {
 								echo ' : ' . esc_html__('Runtime:', 'wpematico') . ' <span id="lastruntime">' . esc_html($lastruntime) . '</span> ' . esc_html__('sec.', 'wpematico');
 							}
@@ -894,12 +895,12 @@ if (!class_exists('WPeMatico_Campaigns')) :
 						$starttime = (isset($campaign_data['starttime']) && !empty($campaign_data['starttime']) ) ? $campaign_data['starttime'] : 0;
 						$activated = (bool) $campaign_data['activated'];
 						if ($starttime > 0) {  // Running play verde & grab rojo & stop gris
-							$runtime = current_time('timestamp') - $starttime;
+							$runtime = time() - $starttime;
 							$ltitle	 = __('Running since:', 'wpematico') . ' ' . $runtime . ' ' . __('sec.', 'wpematico');
 						} elseif ($activated) { // Running play gris & grab rojo & stop gris
 							$cronnextrun = get_post_meta($post_id, 'cronnextrun', true);
 							$cronnextrun = (isset($cronnextrun) && !empty($cronnextrun) && ($cronnextrun > 0 ) ) ? $cronnextrun : $campaign_data['cronnextrun'];
-							$ltitle		 = '<b>' . __('Next Run:', 'wpematico') . '</b> ' . date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $cronnextrun);
+							$ltitle		 = '<b>' . __('Next Run:', 'wpematico') . '</b> ' . wp_date(get_option('date_format') . ' ' . get_option('time_format'), $cronnextrun);
 						} else {  // Inactive play gris & grab gris & stop black
 							$ltitle = '';
 						}
