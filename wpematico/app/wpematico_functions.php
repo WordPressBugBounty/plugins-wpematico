@@ -371,7 +371,7 @@ if (!class_exists('WPeMatico_functions')) {
 		 * @return string Path to file if uploaded, bool false if not success
 		 * @since 1.9.0
 		 */
-		public static function save_file_from_url($url_origin, $new_file) {
+		public static function save_file_from_url($url_origin, $new_file, $type = '') {
 			/**
 			 * Beta: Filter to avoid run these methods by using an external function through the filter.
 			 * The function should read the $url_origin and save it as $new_file and return the file path as string.
@@ -442,7 +442,14 @@ if (!class_exists('WPeMatico_functions')) {
 			}
 			if (empty($origin_content)) {
 				// first try if no 'direct' method
-				$download_file = download_url($url_origin);  // 300 seconds timeout by default 
+				// Type-aware total-transfer timeout. The default (60s) protects the common case —
+				// images, downloaded by core and by many addons that call this with 2 args — so a
+				// dead/black-hole URL can't hang the fetch for WP's default 300s. Only audio/video,
+				// which can legitimately need long transfers, opt into 300s by passing $type. Any
+				// other case is adjustable through the filter without editing callers. (2.8.22)
+				$dl_timeout = ($type === 'audio' || $type === 'video') ? 300 : 60;
+				$dl_timeout = (int) apply_filters('wpematico_download_url_timeout', $dl_timeout, $type, $url_origin, $new_file);
+				$download_file = download_url($url_origin, $dl_timeout);
 				if (!is_wp_error($download_file)) {
 					/**
 					 * if success we try to move the file instead get and put contents to improve performance.  
@@ -638,7 +645,6 @@ if (!class_exists('WPeMatico_functions')) {
 					/* translators: the required version of WPeMatico Professional. */
 					$message .= sprintf(__('Must install at least WPeMatico Professional %s', 'wpematico'), WPeMatico::PROREQUIRED);
 					$message .= ' <a href="' . admin_url('plugins.php?page=wpemaddons') . '#wpematico-pro"> ' . __('Go to update Now', 'wpematico') . '</a>';
-					$message .= '<script type="text/javascript">jQuery(document).ready(function($){$("#wpematico-pro").css("backgroundColor","yellow");});</script>';
 					//Commented to allow access to the settings page
 					//$checks=false;
 				}
@@ -1116,17 +1122,125 @@ if (!class_exists('WPeMatico_functions')) {
 			return $campaigndata;
 		}
 
+		//************************* CAMPAIGN RUN LOCK ***************************************************
+		/**
+		 * Meta key holding the "running" claim for a campaign.
+		 * Stores the UTC timestamp (time()) when the run started. Empty/0 means not running.
+		 * Drives both the anti-duplicate lock and the "running" indicator on the list.
+		 * @since 2.8.22
+		 */
+		const FETCH_LOCK_META = 'wpe_fetch_lock';
+
+		/**
+		 * Time to live (seconds) for a campaign run lock.
+		 * Reuses the existing "Timeout running campaign" setting (campaign_timeout):
+		 * after this many seconds an orphaned lock (run died before releasing) is
+		 * considered stale and auto-cleared so the campaign can run again.
+		 * A value of 0 means the lock never auto-expires (must be cleared manually
+		 * via "Clear Campaign"), matching the documented behavior of that setting.
+		 *
+		 * @param  array $campaign  Optional campaign data (for the filter).
+		 * @return int   TTL in seconds (0 = no auto-expiry).
+		 * @since 2.8.22
+		 */
+		public static function get_fetch_lock_ttl($campaign = array()) {
+			$cfg = get_option(WPeMatico :: OPTION_KEY);
+			$ttl = (isset($cfg['campaign_timeout'])) ? (int) $cfg['campaign_timeout'] : 300;
+			if ($ttl < 0) {
+				$ttl = 0;
+			}
+			return (int) apply_filters('wpematico_fetch_lock_ttl', $ttl, $campaign);
+		}
+
+		/**
+		 * Returns the timestamp since a campaign run is in progress, or 0 if not running.
+		 * Auto-clears a stale lock (older than the TTL) and returns 0 in that case.
+		 * Falls back to the legacy in-array 'starttime' for backward compatibility.
+		 *
+		 * @param  int $campaign_id
+		 * @return int  UTC timestamp the run started, or 0 if not currently running.
+		 * @since 2.8.22
+		 */
+		public static function get_campaign_running_since($campaign_id) {
+			$lock = (int) get_post_meta($campaign_id, self::FETCH_LOCK_META, true);
+			if ($lock <= 0) {
+				// Backward-compat: honor a legacy persisted starttime if present.
+				$campaign = self::get_campaign($campaign_id);
+				$lock = (isset($campaign['starttime']) && !empty($campaign['starttime'])) ? (int) $campaign['starttime'] : 0;
+				if ($lock <= 0) {
+					return 0;
+				}
+			}
+			$ttl = self::get_fetch_lock_ttl();
+			if ($ttl > 0 && (time() - $lock) >= $ttl) {
+				// Stale/orphaned lock: clear it so the campaign can run again.
+				delete_post_meta($campaign_id, self::FETCH_LOCK_META);
+				return 0;
+			}
+			return $lock;
+		}
+
+		/**
+		 * Whether a campaign run is currently in progress.
+		 *
+		 * @param  int $campaign_id
+		 * @return bool
+		 * @since 2.8.22
+		 */
+		public static function is_campaign_running($campaign_id) {
+			return self::get_campaign_running_since($campaign_id) > 0;
+		}
+
+		/**
+		 * Atomically claim a campaign for a run. Sets the run lock if and only if the
+		 * campaign is not already running. Uses a MySQL named lock (GET_LOCK, non
+		 * blocking) to close the check-and-set race window, degrading gracefully when
+		 * the host does not support it.
+		 *
+		 * @param  int $campaign_id
+		 * @return bool  true if claimed (caller may run), false if already running.
+		 * @since 2.8.22
+		 */
+		public static function claim_campaign($campaign_id) {
+			global $wpdb;
+			$lock_name = 'wpe_claim_' . (int) $campaign_id;
+			// Non-blocking MySQL named lock: '1' acquired, '0' busy, null = unsupported.
+			$db_lock = $wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, 0)", $lock_name));
+			if ($db_lock === '0') {
+				return false; // Another process is in the critical section right now.
+			}
+			$claimed = false;
+			if (!self::is_campaign_running($campaign_id)) {
+				update_post_meta($campaign_id, self::FETCH_LOCK_META, time());
+				$claimed = true;
+			}
+			if ($db_lock === '1') {
+				$wpdb->query($wpdb->prepare("SELECT RELEASE_LOCK(%s)", $lock_name));
+			}
+			return $claimed;
+		}
+
+		/**
+		 * Release a campaign run lock.
+		 *
+		 * @param  int $campaign_id
+		 * @since 2.8.22
+		 */
+		public static function release_campaign($campaign_id) {
+			delete_post_meta($campaign_id, self::FETCH_LOCK_META);
+		}
+
 		//************************* GUARDA CAMPAÑA *******************************************************
 
 		/**
-		 * Save campaign data 
+		 * Save campaign data
 		 * Each call calculate the next cron time and save it on the campaign cron field.
 		 * Some values for direct access or list columns are saved also individually.
-		 *  
+		 *
 		 * Required @param   integer  $post_id    Campaign ID to save on.
 		 *			@param   array  $campaign	All the campaign data to save.
-		 * 
-		 * @return int|bool with campaign data 
+		 *
+		 * @return int|bool with campaign data
 		 * */
 		public static function update_campaign($post_id, $campaign = array()) {
 			$campaign['cronnextrun'] = (int) WPeMatico :: time_cron_next($campaign['cron']);

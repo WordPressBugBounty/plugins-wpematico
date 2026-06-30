@@ -2,7 +2,7 @@
 Contributors: etruel, khaztiel, gerarjos14, sniuk
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=B8V39NWK3NFQU 
 Tags: RSS, XML, feed to post, rss aggregator, content curation
-Stable tag: 2.8.21
+Stable tag: 2.8.22
 Tested up to: 7.0
 Requires at least: 4.8
 Requires PHP: 7.0
@@ -213,6 +213,20 @@ We welcome tutorials, videos, PDFs, and feature suggestions. Send contributions 
 == Changelog ==
 
 > View complete release history at [WPeMatico Releases](https://wpematico.com/releases/)
+
+= 2.8.22 – June 29, 2026 =
+
+> _Recommended update for all users — fixes rare duplicate posts and stuck "running" campaigns, especially on busy sites with many campaigns or addons (GPT Spinner, Professional, Full Content)._
+
+* **Fixed:** Eliminated rare duplicate published posts caused by overlapping cron passes re-taking a campaign that was still being processed. Each campaign is now claimed at the start of its run and its next run is scheduled immediately, so a concurrent cron pass can no longer fetch the same items twice.
+* **Fixed:** Campaigns no longer freeze for several minutes when a source image is broken or unresponsive. Image downloads now give up quickly and move on, while audio and video keep a longer allowance so large media still downloads completely.
+* **Improved:** When several campaigns share the same schedule, they now run in a fair order — the most overdue first — so no campaign keeps getting skipped while slower ones run. A campaign that is still running is reliably skipped instead of being started a second time.
+* **Improved:** The "Running" indicator in the campaigns list, editor and dashboard now reflects the real run state during scheduled (cron) runs, not only manual runs. Orphaned locks left by an interrupted run (timeout, out-of-memory) auto-clear after the "Timeout running campaign" setting, or can be released manually with "Clear/Break Campaign".
+* **Improved:** A manual run is now blocked with a clear message while the same campaign is already running.
+* **Fixed:** Closed another rare source of duplicate posts — if a run was interrupted (timeout or out-of-memory) after a post was inserted but before it was recorded as fetched (most likely during heavy per-item image processing), the next run could re-insert it. Items are now recorded as fetched before that heavy work, so an interrupted run can no longer create a duplicate.
+* **Fixed:** The "Professional add-on is out of date" admin notice no longer shows leftover script code as plain text. The highlight effect was removed so the notice now reads cleanly.
+* **External:** The Full Content add-on no longer stalls a campaign when a source's featured or social image is slow or unreachable — it now times out quickly and continues, keeping your scheduled runs flowing.
+* **Important:** WPeMatico Professional **3.6 or higher** is now required. Earlier Professional versions could stall scheduled runs when "Draw post title on featured image" was enabled. Please update the Professional add-on after updating the core.
 
 = 2.8.21 – June 13, 2026 =
 
