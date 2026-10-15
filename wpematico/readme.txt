@@ -2,7 +2,7 @@
 Contributors: etruel, khaztiel, gerarjos14, sniuk
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=B8V39NWK3NFQU
 Tags: RSS, XML, feed to post, rss aggregator, content curation
-Stable tag: 2.9
+Stable tag: 2.9.1
 Tested up to: 7.1
 Requires at least: 4.8
 Requires PHP: 7.0
@@ -140,7 +140,7 @@ If WPeMatico saves you time and effort, please **[Rate Us 5 Stars ⭐⭐⭐⭐�
 
 This plugin was originally inspired by WP-o-Matic and early versions of BackWPUp (circa 2009-2010). Special thanks to those pioneering developers.
 
-**License**: GNU General Public License v3 or later. This is free software; you can redistribute and/or modify it under the GPL terms.
+**License**: GNU General Public License v2 or later. This is free software; you can redistribute and/or modify it under the GPL terms.
 
 **Extensions**: Works with free and premium addons available on our website.
 
@@ -227,6 +227,21 @@ We welcome tutorials, videos, PDFs, and feature suggestions. Send contributions 
 == Changelog ==
 
 > See all detailed changelog at [WPeMatico Releases](https://wpematico.com/releases/)
+
+= 2.9.1 – Oct 14, 2026 =
+
+> _**Recommended security update for all users.**_
+> _With the default settings, the content of every imported post now follows the same HTML rules WordPress applies to the posts of your authors. Text, images, galleries, videos, audio, tables and formatting are published as the feed sends them; scripts, forms and inline SVG icons inside the feed content are left out, and social network posts keep their official embed. Your post template and your rewrites are published exactly as you wrote them._
+
+* **Security:** Imported content is checked against the HTML WordPress allows in a post, the same way for a scheduled run, an external cron or a manual "Run Now". This covers the content, the title, the excerpt and every post template tag that carries text from the feed, and the campaign log shows the titles and addresses it quotes from feeds as plain text.
+* **Improved:** Posts from social networks inside a feed's content — X, Instagram, Threads, TikTok, Bluesky, Reddit, Pinterest, Tumblr and Facebook — are published with each network's official embed.
+* **Performance:** Images that the source site loads lazily are published with their real address, so every visit loads each image with a single request.
+* **New:** Google News campaign type. Publish the news of a Google News search, topic or publication: paste the address from your browser and the campaign finds its feed on its own. Each post gets the headline as the publication wrote it, and the name and the address of the publication are saved with the post and ready for the post template as `{source_name}` and `{source_url}`. Switch it on from its card in the Dashboard. With WPeMatico Professional each post links to the article on the publication's own site.
+* **New:** Six more languages. WPeMatico now also speaks Japanese, Brazilian Portuguese, Italian, Polish, Turkish and Vietnamese: every screen, tooltip, Help tab and campaign log line.
+* **Improved:** German, French, Dutch, Greek, Persian, Slovak, Romanian, Arabic, Chinese and the Latin American Spanish translations now use the official WordPress wording of each language, so WPeMatico reads like the rest of your admin.
+* **Improved:** The WPeMatico menu stays open on Campaigns while you edit a campaign.
+* **For developers:** the `wpematico_item_permalink` filter sets the address a post is read from and linked to, once per item about to be published.
+* **For developers:** the `wpematico_feed_allowed_html` filter sets the tags and attributes an imported post keeps, and `wpematico_feed_embed_scripts` the social network scripts it may load.
 
 = 2.9 – Oct 8, 2026 =
 
@@ -428,124 +443,6 @@ Recommended to test it in a staging environment before updating production websi
 * Minor UI and style improvements across the plugin.
 * Improved image processing reliability when using the [Facebook Fetcher](https://etruel.com/downloads/wpematico-facebook-fetcher/) Addon (bug fix).
 
-= 2.8.14 – Dec 1, 2025 =
-Confirmed compatibility with WordPress 6.9.
-
-= 2.8.13 – Nov 13, 2025 =
-* **Fixes vulnerability** reported by WPScan in the campaign edit screen.
-* Other minor fixes.
-
-= 2.8.12 – Oct 23, 2025 =
-* **Fixes Authenticated (Subscriber+) Server-Side Request Forgery** (reported by Wordfence).
-* Added a Namespace to the blank-simplepie class to allow enclosure images in contents outside feeds.
-
-= 2.8.11 – Sep 24, 2025 =
-* **Fixes Sensitive Data Exposure vulnerability** in download debug log (reported by Patchstack).
-* Fixes typos.
-
-= 2.8.10 – Aug 6, 2025 =
-* Improvement of the filters used to load the list of campaigns.
-* Fixes an issue incorporated in the latest release that slowed down the connection on campaign edit.
-* Fixes typos.
-
-= 2.8.9 – Aug 4, 2025 =
-* Fixes an issue with improperly sanitized action buttons in the campaign list.
-* Fixes wrong sanitized html "Next Run" column in the campaign list.
-* Improves errors handling function on campaigns fetching process and logs.
-
-= 2.8.8 – Jul 24, 2025 =
-* **Fixes CSRF vulnerability** in plugin deactivation feedback system (reported by Wordfence).
-* Only applies to users with the “activate plugins” capability.
-* Added nonce verification for all feedback AJAX requests.
-* Implemented strict input validation for deactivation reasons.
-* Adds pre-deactivation plugin state verification.
-* Fixes minor HTML formatting in feedback modal.
-
-= 2.8.7 – Jul 3, 2025 =
-
-* Refactored few missed internal function names with a prefix to avoid naming conflicts with other plugins.
-
-= 2.8.6 – Jun 21, 2025 =
-
-* **New Debug Logs Tool!** Easily track what’s happening under the hood of WPeMatico with a dedicated log viewer in the Tools menu. Perfect for developers and advanced users. [Learn how to use it.](https://etruel.com/question/how-to-use-wpematico-log/)
-* Implemented **WP_Filesystem** for safer and more WordPress-compliant file operations.
-
-= 2.8.5 May 19, 2025 =
-
-* Applied multiple input sanitization and overall security enhancements.
-* Fixes an image URL in Settings screen.
-
-= 2.8.4 May 9, 2025 =
-
-* Fixed broken HTML formatting in campaign log messages.
-* Fixed issue where Bulk Edit actions were not saving data correctly.
-* Resolved CSRF vulnerability when saving campaigns.
-* Improved consistency of JSON responses in various AJAX methods.
-* Applied multiple input sanitization and overall security enhancements.
-
-= 2.8.3 May 2, 2025 =
-
-* Fixes Broken Access Control vulnerability on campaign save action. Thanks to domiee13 and Patchstack!
-* Fixes in strings returned by the campaign edit screen. 
-* Fixes few texts on Notices.
-
-= 2.8.2 Abr 2, 2025 =
-
-* Enhanced image upload handling and processing for improved reliability.
-* Refined feedback email content when the plugin is deactivated.
-* Replaced custom function with WordPress native `attachment_url_to_postid` for better compatibility and performance.
-* NOTE: **Enlarges the version required for the [WPeMatico Professional](https://etruel.com/downloads/wpematico-professional/) addon to 3.2**  
-
-= 2.8.1 Mar 25, 2025 =
-
-* **Fixed few bugs incorporated in the last version.**
-* Fixes images fetched from the enclosure being skipped during processing on Professional Extension.
-* Fixes featured image assignment issue where the last image was being assigned instead of the first one.
-* Fixes visibility issue with the "Save Image attributes on WP Media" option, which was hidden unintentionally.
-* Improves feedback popup notifications for better user experience.
-
-= 2.8 Mar 1, 2025 =
-
-Major Version 2.8 focuses on **highly requested features** and **new functionalities** designed for future (but near) general improvements.
-Recommended to test it in a staging environment before updating production websites.
-
-#### _Enhancements:_
-
-> * **New feature to retrieve image attributes and store them in WP Media.**  
->   Now, image attributes such as alt text, captions, and metadata will be fetched and saved along with the images in WordPress Media Library.  
-
-> * **New feature to limit the number of automatically created categories.**  
->   Allows better control over taxonomy creation, preventing excessive automatic category generation.  
-
-> * **New direct link to WPeMatico extensions from the plugins page.**  
->   Easily discover and manage premium add-ons for enhanced functionality.
-
-> * **New feedback form when deactivating the plugin.**  
->   Users can now provide insights and reasons for deactivation, helping improve WPeMatico.
-
-> * **New functionality to integrate features from discontinued addons into the free core.**
->   Some features previously exclusive to Pro addons will now be gradually included in the free version.
-
-> * **Quick Edit improvements: Added taxonomy support for custom post types in campaigns.**
->   Now, users can assign taxonomies directly in the Quick Edit feature for better campaign organization.
-
-> * **Improved campaign execution notifications from the campaign list.**
->   Enhances visibility and user experience when running campaigns manually.
-
-> * Various **UI/UX cosmetic improvements**.  
-
-> * **Tested with WordPress 6.7.2** to ensure full compatibility.  
-
-#### _Bugfixes:_
-
-> * Fixes Notice: Function _load_textdomain_just_in_time was called incorrectly.
-> * Fixes **several security issues** to enhance plugin stability and safety.
-
-#### _Recent (may break) changes:_
-
-> * NOTE: **Enlarges the version required for the [WPeMatico Professional](https://etruel.com/downloads/wpematico-professional/) addon to 3.1**  
-> * NOTE2: **Enlarges the version required for the [WPeMatico GPT Spinner](https://etruel.com/downloads/wpematico-gpt-spinner/) addon to 2.0**  
-
 = Earlier versions =
 For the changelog of earlier versions, please refer to changelog.md file or [the changelog on wpematico.com](https://www.wpematico.com/releases/).
 
@@ -554,6 +451,9 @@ For the changelog of earlier versions, please refer to changelog.md file or [the
 
 
 == Upgrade Notice ==
+
+= 2.9.1 =
+Recommended security update. Using WPeMatico Full Content or GPT Spinner? Update them first: WPeMatico 2.9.1 works with Full Content 2.9.5 and GPT Spinner 3.5.3 or later.
 
 = 2.9 =
 Major update. Update your WPeMatico add-ons first: WPeMatico 2.9 needs the add-on versions released with it, which also run on WPeMatico 2.8.27.

@@ -308,7 +308,20 @@ class wpematico_campaign_fetch extends wpematico_campaign_fetch_functions {
             }
             // Get the source Permalink trying to redirect if is set.
             $permalink = $this->getReadUrl($permalink, $this->campaign);
-            $this->current_item['permalink'] = $permalink;
+            /**
+             * The address an item about to be published is read from and linked to.
+             *
+             * Applied once per item, past the duplicate check, and it leaves the
+             * item's hash alone: a campaign type or an add-on may point the post at
+             * another address without the item being taken for a new one.
+             *
+             * @since 2.9.1
+             * @param string $permalink
+             * @param object $item     SimplePie item.
+             * @param array  $campaign
+             * @param string $feed
+             */
+            $this->current_item['permalink'] = apply_filters('wpematico_item_permalink', $permalink, $item, $this->campaign, $feed);
             $this->currenthash[wpematico_feed_hash_key('currenthash', $feed)] = md5($permalink); // the hash of the current item feed
 
             // Persist the dedup hash before processItem so an interrupted run can't re-insert the item.
@@ -717,6 +730,12 @@ class wpematico_campaign_fetch extends wpematico_campaign_fetch_functions {
                 $this->current_item['post_parent'] = $this->campaign['campaign_bbpress_topic'];
             }
         }
+        // The same markup WordPress keeps in a title and an excerpt saved without the
+        // unfiltered_html capability, whoever runs the campaign.
+        $this->current_item['title'] = WPeMatico_Feed_HTML::text($this->current_item['title']);
+        if (!empty($this->current_item['excerpt'])) {
+            $this->current_item['excerpt'] = WPeMatico_Feed_HTML::excerpt($this->current_item['excerpt']);
+        }
         $this->current_item['title'] = apply_filters('wpem_parse_title', $this->current_item['title']);
         $this->current_item['content'] = apply_filters('wpem_parse_content', $this->current_item['content']);
         $this->current_item['excerpt'] = apply_filters('wpem_parse_excerpt', $this->current_item['excerpt']);
@@ -764,8 +783,9 @@ class wpematico_campaign_fetch extends wpematico_campaign_fetch_functions {
         // postProcessItem() with the feed item, and the fetch object holds no property
         // carrying it.
         if (apply_filters('wpematico_allow_insertpost', true, $this, $args, $item)) {
-            // Feed content keeps its markup for campaigns allowed to store unfiltered HTML.
-            // The previous state of the filter is restored right after the insert, so this
+            // The feed's markup is already sanitized (WPeMatico_Feed_HTML); this keeps the
+            // post template and the rewrites as written, for campaigns whose editor may
+            // post unfiltered HTML. The previous state of the filter is restored right after the insert, so this
             // decision never reaches anything else saved during the same request.
             $unfiltered_html = wpematico_campaign_allows_unfiltered_html($this->campaign);
             $kses_was_active = (false !== has_filter('content_save_pre', 'wp_filter_post_kses'));
