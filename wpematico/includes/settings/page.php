@@ -1022,19 +1022,64 @@ if (!class_exists('WPeMatico_Settings')) :
 			<?php
 		}
 
+		const RELEASES_FEED		 = 'https://www.wpematico.com/releases/feed/';
+		const RELEASES_TRANSIENT = 'wpematico_release_notes';
+		const RELEASES_BACKOFF	 = 'wpematico_release_notes_backoff';
+
+		public static function release_notes_timeout() {
+			return 5;
+		}
+
+		/**
+		 * The highlights of the latest release, from wpematico.com.
+		 *
+		 * Every tab of this screen asks for them, so they are kept twelve hours and a failed
+		 * request is not repeated for an hour: the screen never waits on another site more
+		 * than once in a while, and then for five seconds at most. ★ Ask SimplePie's own
+		 * error(), never is_wp_error(): fetchFeed() always returns a SimplePie object.
+		 *
+		 * @return string HTML, empty when there is nothing to show.
+		 */
+		public static function release_notes() {
+			$cached = get_transient(self::RELEASES_TRANSIENT);
+			if (is_array($cached) && isset($cached['version'], $cached['html']) && WPEMATICO_VERSION === $cached['version']) {
+				return $cached['html'];
+			}
+			if (get_transient(self::RELEASES_BACKOFF)) {
+				return '';
+			}
+
+			add_filter('wpe_simplepie_timeout', array(__CLASS__, 'release_notes_timeout'), 99);
+			$feed = WPeMatico::fetchFeed(array(
+				'url'					   => apply_filters('wpematico_release_notes_feed_url', self::RELEASES_FEED),
+				'stupidly_fast'			   => true,
+				'max'					   => 0,
+				'order_by_date'			   => true,
+				'force_feed'			   => false,
+				'disable_simplepie_notice' => true,
+			));
+			remove_filter('wpe_simplepie_timeout', array(__CLASS__, 'release_notes_timeout'), 99);
+
+			$html = '';
+			if (is_object($feed) && method_exists($feed, 'get_items') && !(method_exists($feed, 'error') && $feed->error())) {
+				foreach ($feed->get_items(0, 1) as $item) {
+					// Whatever comes from a feed is sanitized, this one included.
+					$html = wp_kses_post((string) $item->get_description());
+				}
+			}
+
+			if ('' === $html) {
+				set_transient(self::RELEASES_BACKOFF, 1, HOUR_IN_SECONDS);
+				return '';
+			}
+			set_transient(self::RELEASES_TRANSIENT, array('version' => WPEMATICO_VERSION, 'html' => $html), 12 * HOUR_IN_SECONDS);
+			return $html;
+		}
+
 		public static function settings_wpematico_lastlog() {
 			if (!get_option('wpematico_lastlog_disabled')):
 
-				$fetch_feed_params = array(
-					'url'					   => 'https://www.wpematico.com/releases/feed/',
-					'stupidly_fast'			   => true,
-					'max'					   => 0,
-					'order_by_date'			   => true,
-					'force_feed'			   => false,
-					'disable_simplepie_notice' => true,
-				);
-
-				$feed = WPeMatico::fetchFeed($fetch_feed_params);
+				$release_notes = self::release_notes();
 				?>
 				<div id="wpe_changelog-notice" class="wpe_changelog-notice" style="display: none;">
 					<div class="wpe_changelog-header">
@@ -1049,12 +1094,7 @@ if (!class_exists('WPeMatico_Settings')) :
 					</div>
 					<div class="wpe_changelog-content">
 						<div class="wpe_changelog-list">
-							<?php
-							foreach ($feed->get_items(0, 1) as $item) {
-								$content = $item->get_description();
-								echo $content;
-							}
-							?>
+							<?php echo $release_notes; ?>
 						</div>
 						<p><a href="https://www.wpematico.com/releases/" class="button" target="_blank"><span class="dashicons dashicons-arrow-right-alt"></span> <?php _e('Read more on wpematico.com', 'wpematico'); ?></a></p>
 						<br>
@@ -1316,24 +1356,10 @@ if (!class_exists('WPeMatico_Settings')) :
 
 				// Save license keys when present (licenses tab)
 				if (!empty($_POST['license_key']) && is_array($_POST['license_key'])) {
-					$keys = array_map('sanitize_key', $_POST['license_key']);
-					update_option('wpematico_license_keys', $keys);
-					$plugins_args = apply_filters('wpematico_plugins_updater_args', array());
-					foreach ($keys as $plugin_name => $key) {
-						if (empty($plugins_args[$plugin_name]) || empty($key)) continue;
-						$check_args = array(
-							'license'   => $key,
-							'item_name' => urlencode($plugins_args[$plugin_name]['api_data']['item_name']),
-							'url'       => home_url(),
-							'version'   => $plugins_args[$plugin_name]['api_data']['version'],
-							'author'    => 'Esteban Truelsegaard',
-						);
-						$license_data = wpematico_licenses_handlers::check_license($plugins_args[$plugin_name]['api_url'], $check_args);
-						if (is_object($license_data)) {
-							wpematico_licenses_handlers::set_license_status($plugin_name, $license_data->license);
-						}
+					$saved = wpematico_licenses_handlers::save_keys(wp_unslash($_POST['license_key']));
+					if ($saved) {
+						WPeMatico::add_wp_notice(array('text' => $saved['text'], 'error' => $saved['error'], 'below-h2' => false));
 					}
-					WPeMatico::add_wp_notice(array('text' => __('License keys saved.', 'wpematico'), 'below-h2' => false));
 				}
 
 				error_reporting($errlev);

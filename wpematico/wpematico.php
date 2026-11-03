@@ -3,7 +3,7 @@
  * Plugin Name: WPeMatico
  * Plugin URI: https://www.wpematico.com
  * Description: Create posts automatically from RSS/Atom feeds organized into campaigns with multiples filters.  If you like it, please rate it 5 stars.
- * Version: 2.9.1
+ * Version: 2.9.2
  * Requires at least: 4.8
  * Requires PHP: 7.0
  * Author: Etruel Developments LLC
@@ -31,7 +31,7 @@ if (!class_exists('Main_WPeMatico')) {
 		private function setup_constants() {
 
 			if (!defined('WPEMATICO_VERSION'))
-				define('WPEMATICO_VERSION', '2.9.1');
+				define('WPEMATICO_VERSION', '2.9.2');
 
 			if (!defined('WPEMATICO_BASENAME'))
 				define('WPEMATICO_BASENAME', plugin_basename(__FILE__));
@@ -126,6 +126,17 @@ if (!class_exists('Main_WPeMatico')) {
 			// the same.
 			if (!is_admin() && (wp_doing_cron() || (defined('WP_CLI') && WP_CLI))) {
 				require_once(WPEMATICO_PLUGIN_DIR . 'includes/lib/update_class.php');
+			}
+			// WP-Cron's own update check has to see the add-ons' updates, but almost every
+			// cron request is a campaign run: the licence code is loaded only when one of
+			// the events that look for updates is about to run, and not at all otherwise.
+			if (!is_admin() && wp_doing_cron()) {
+				$load_updaters = function () {
+					require_once(WPEMATICO_PLUGIN_DIR . 'includes/lib/licenses_handlers.php');
+					wpematico_licenses_handlers::extension_updater();
+				};
+				add_action('wp_update_plugins', $load_updaters, 0);
+				add_action('wp_maybe_auto_update', $load_updaters, 0);
 			}
 			require_once(WPEMATICO_PLUGIN_DIR . 'includes/cron_functions.php');
 			require_once(WPEMATICO_PLUGIN_DIR . 'includes/compatibilities.php');

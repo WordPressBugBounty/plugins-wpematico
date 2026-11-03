@@ -2,8 +2,8 @@
 Contributors: etruel, khaztiel, gerarjos14, sniuk
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=B8V39NWK3NFQU
 Tags: RSS, XML, feed to post, rss aggregator, content curation
-Stable tag: 2.9.1
-Tested up to: 7.1
+Stable tag: 2.9.2
+Tested up to: 7.2
 Requires at least: 4.8
 Requires PHP: 7.0
 License: GPLv2 or later
@@ -228,6 +228,22 @@ We welcome tutorials, videos, PDFs, and feature suggestions. Send contributions 
 
 > See all detailed changelog at [WPeMatico Releases](https://wpematico.com/releases/)
 
+= 2.9.2 – Nov 2, 2026 =
+
+> _**Recommended security update for all users.** Tested up to WordPress 7.2._
+
+* **Security:** Feed addresses are checked against every address their host resolves to, over IPv4 and IPv6, for a scheduled run, an external cron, a manual "Run Now", the previews and the feed tests. Thanks to Aita Avela for reporting.
+* **Security:** The categories of a campaign are saved as category IDs, and everything the campaigns list shows about a campaign is escaped on screen.
+* **Improved:** The Licenses screen shows only the last four characters of each license key, and a key you did not change is kept as it is when you save.
+* **Improved:** Saving a license key activates this site for updates and support, and replacing a key releases the activation of the old one. Check License, Activate License and Deactivate License show what the store answered and the new state of the license.
+* **Improved:** The Licenses screen asks the store about your licenses once every twelve hours, or when you press a button, so the screen opens at once. Licenses with unlimited activations show their account data.
+* **Improved:** The Renew and Extend links of the Licenses screen open the checkout of the add-on's own product, and a lifetime license offers no renewal.
+* **Improved:** A valid license shows the state "Activated for updates" and Deactivate License; Check License appears for a license that is not valid, and the store is asked at most once every ten seconds for each add-on.
+* **Improved:** The Add-Ons screen reminds you that WPeMatico does not update automatically only while a WPeMatico update is waiting, which is when the add-ons wait for it.
+* **Improved:** WordPress finds the updates of your add-ons also when it checks in the background, and the Licenses screen is for administrators only.
+* **Improved:** WPeMatico starts cleanly on servers that reach the plugin folder through a symbolic link.
+* **Performance:** Every tab of the Settings screen opens at once: the highlights of the latest release are kept for twelve hours instead of being requested from wpematico.com on each visit.
+
 = 2.9.1 – Oct 14, 2026 =
 
 > _**Recommended security update for all users.**_
@@ -451,6 +467,9 @@ For the changelog of earlier versions, please refer to changelog.md file or [the
 
 
 == Upgrade Notice ==
+
+= 2.9.2 =
+Recommended security update.
 
 = 2.9.1 =
 Recommended security update. Using WPeMatico Full Content or GPT Spinner? Update them first: WPeMatico 2.9.1 works with Full Content 2.9.5 and GPT Spinner 3.5.3 or later.
