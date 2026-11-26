@@ -394,10 +394,10 @@ class wpematico_campaign_fetch_functions {
 	}
 
 	static function getReadUrl($url, $campaign) {
-		// ★ This makes a blocking get_headers() request per call unless the campaign has
-		// "Avoid search redirection" on, and it is asked the same question more than once
-		// for the same item: twice per item in a run (the duplicate pass and the insert
-		// pass), and again by the preview screens. Answer each URL once per request.
+		// ★ One request per redirect hop unless the campaign has "Avoid search
+		// redirection" on, and it is asked the same question more than once for the same
+		// item: twice per item in a run (the duplicate pass and the insert pass), and
+		// again by the preview screens. Answer each URL once per request.
 		static $resolved = array();
 
 		$avoid	 = !empty($campaign['avoid_search_redirection']);
@@ -420,35 +420,66 @@ class wpematico_campaign_fetch_functions {
 			return $resolved[$memo] = $permalink;
 		}
 
-		//search for redirections
-		if (!$campaign['avoid_search_redirection']) {
-
-			if (version_compare(phpversion(), '5.3.0', '>=')) {
-				stream_context_set_default(array(
-					'ssl' => array(
-						'verify_peer'		 => false,
-						'verify_peer_name'	 => false,
-					),
-				));
-			}
-
-			$headers = get_headers($permalink);
-			foreach ($headers as $header) {
-				$parts = explode(':', $header, 2);
-				if (strtolower($parts[0]) == 'location') {
-					$location	 = trim($parts[1]);
-					$url_parts	 = parse_url($location);
-					if (!isset($url_parts['host']) && !isset($url_parts['scheme'])) {
-						$permalink_parts = parse_url($permalink);
-						if (isset($permalink_parts['host']) && isset($permalink_parts['scheme'])) {
-							$location = $permalink_parts['scheme'] . '://' . $permalink_parts['host'] . $location;
-						}
-					}
-					return $resolved[$memo] = $location;
-				}
-			}
+		if (!$avoid) {
+			$permalink = self::follow_redirects($permalink);
 		}
 		return $resolved[$memo] = $permalink;
+	}
+
+	/**
+	 * The address an item link ends at, following its redirects one hop at a time.
+	 *
+	 * ★ Runs for every new item before the duplicate check, inside the cron request, so
+	 * the whole chain shares one short time budget, and every hop goes through
+	 * WPeMatico::validate_feed_url() like any other address a fetch connects to. When
+	 * the budget runs out or a hop fails, the last address reached is the answer.
+	 *
+	 * @since 2.9.3
+	 * @param  string $url
+	 * @return string
+	 */
+	protected static function follow_redirects($url) {
+		$budget	  = (float) apply_filters('wpematico_permalink_redirect_timeout', 5, $url);
+		$deadline = microtime(true) + max(0.5, $budget);
+		$current  = $url;
+
+		if (is_wp_error(WPeMatico::validate_feed_url($current))) {
+			return $current;
+		}
+
+		for ($hop = 0; $hop < 5; $hop++) {
+			$left = $deadline - microtime(true);
+			if ($left <= 0) {
+				break;
+			}
+			$args	  = array('timeout' => $left, 'redirection' => 0);
+			$response = wp_remote_head($current, $args);
+			$code	  = is_wp_error($response) ? 0 : (int) wp_remote_retrieve_response_code($response);
+
+			// A server that refuses HEAD may still redirect a GET; read only the headers.
+			if ((405 === $code || 501 === $code) && ($left = $deadline - microtime(true)) > 0) {
+				$response = wp_remote_get($current, $args + array('limit_response_size' => 1));
+				$code	  = is_wp_error($response) ? 0 : (int) wp_remote_retrieve_response_code($response);
+			}
+			if ($code < 300 || $code >= 400) {
+				break;
+			}
+
+			$location = wp_remote_retrieve_header($response, 'location');
+			if (is_array($location)) {
+				$location = end($location);
+			}
+			if ('' === trim((string) $location)) {
+				break;
+			}
+			$next = WP_Http::make_absolute_url(trim($location), $current);
+			if ($next === $current || is_wp_error(WPeMatico::validate_feed_url($next))) {
+				break;
+			}
+			$current = $next;
+		}
+
+		return $current;
 	}
 
 	/**
@@ -702,7 +733,7 @@ class wpematico_campaign_fetch_functions {
 
 	public function parse_src_image($imagen_src_real) {
 		// Decode URL encoding to properly handle spaces and special characters
-		$imagen_src_real = rawurldecode($imagen_src_real);
+		$imagen_src_real = rawurldecode(wp_specialchars_decode($imagen_src_real, ENT_QUOTES));
 
 		// Replace spaces with %20 to keep URLs valid
 		$imagen_src_real = str_replace(' ', '%20', $imagen_src_real);
@@ -713,8 +744,9 @@ class wpematico_campaign_fetch_functions {
 
 	public function parse_dst_image($imagen_src_real, $current_item, $campaign, $item) {
 		$imagen_src_real = apply_filters('wpematico_img_src_before_parse', $imagen_src_real, $current_item, $campaign, $item);
-		// Decode URL to handle special characters correctly
-		$basename = rawurldecode(basename($imagen_src_real));
+		// The name comes from the path: a query string is not part of the file name.
+		$path	  = wp_parse_url($imagen_src_real, PHP_URL_PATH);
+		$basename = rawurldecode(basename(empty($path) ? $imagen_src_real : $path));
 
 		// Extract extension and filename
 		$ext = pathinfo($basename, PATHINFO_EXTENSION);

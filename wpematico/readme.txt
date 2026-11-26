@@ -2,7 +2,7 @@
 Contributors: etruel, khaztiel, gerarjos14, sniuk
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=B8V39NWK3NFQU
 Tags: RSS, XML, feed to post, rss aggregator, content curation
-Stable tag: 2.9.2
+Stable tag: 2.9.3
 Tested up to: 7.2
 Requires at least: 4.8
 Requires PHP: 7.0
@@ -227,6 +227,19 @@ We welcome tutorials, videos, PDFs, and feature suggestions. Send contributions 
 == Changelog ==
 
 > See all detailed changelog at [WPeMatico Releases](https://wpematico.com/releases/)
+
+= 2.9.3 – Nov 25, 2026 =
+
+> _**Recommended security update for all users.**_
+
+* **Security:** Further hardening of the campaign editor, which shows every saved field exactly as you wrote it. Thanks to Dmitrii Ignatyev (CleanTalk) for reporting.
+* **Improved:** The campaigns list and the WPeMatico Dashboard tell you when your active campaigns have been waiting for their scheduled run for more than two days, and what in your cron setup to look at.
+* **Improved:** The news on the WPeMatico Dashboard come only from the WPeMatico posts of the etruel.com blog.
+* **Performance:** Each new feed item finds the article its link leads to through the whole chain of redirects, in a few seconds at most, and moves on when a site does not answer. Every address on the way is checked like a feed address.
+* **Improved:** A campaign run stops at the time limit set in Settings from the moment it starts reading the feed.
+* **Improved:** Run Once in the campaigns list shows the new run time on the row of the campaign that ran.
+* **Improved:** Images whose address carries parameters after the file name (`photo.jpg?w=800`) are saved to the Media Library under their own file name.
+* **Note:** WPeMatico Professional users: update Professional to 3.7.4 together with this version.
 
 = 2.9.2 – Nov 2, 2026 =
 
